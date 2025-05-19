@@ -1,5 +1,5 @@
 const express = require('express');
-const cors = require('cors');       // <--- add this line
+const cors = require('cors');       // <--- added
 const axios = require('axios');
 const { JSDOM } = require('jsdom');
 const { URL } = require('url');
@@ -7,20 +7,29 @@ const { URL } = require('url');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());                   // <--- add this line
+app.use(cors());                   // <--- added
 app.use(express.json());
 
 const crawled = new Set();
 
 async function crawl(url, origin, foundFiles, depth = 0) {
-  if (crawled.has(url) || depth > 10) return;
+  if (crawled.has(url) || depth > 15) return; // increased depth to 15
   crawled.add(url);
 
+  console.log("Fetching:", url);
+
   try {
-    const res = await axios.get(url, { timeout: 5000 });
+    const res = await axios.get(url, { 
+      timeout: 10000,    // increased timeout to 10 seconds
+      headers: { 
+        'User-Agent': 'Mozilla/5.0 (compatible; CrawlerBot/1.0)'  // set User-Agent header
+      }
+    });
+
     const contentType = res.headers['content-type'];
 
     if (url.endsWith('.html') || url.endsWith('.js')) {
+      console.log("Found file:", url);
       foundFiles.push(url);
     }
 
@@ -32,18 +41,24 @@ async function crawl(url, origin, foundFiles, depth = 0) {
 
       for (const link of links) {
         let href = link.href || link.src;
-
         if (!href) continue;
+
         try {
           const absoluteUrl = new URL(href, url).href;
-          if (absoluteUrl.startsWith(origin)) {
+
+          // For debugging, comment out the origin check to allow crawling outside origin
+          // if (absoluteUrl.startsWith(origin)) {
             await crawl(absoluteUrl, origin, foundFiles, depth + 1);
-          }
-        } catch {}
+          // }
+
+        } catch (err) {
+          // ignore URL parsing errors
+        }
       }
     }
   } catch (err) {
-    // ignore errors
+    console.log(`Failed to fetch ${url}: ${err.message}`);
+    // silently ignore fetch errors
   }
 }
 
@@ -65,3 +80,4 @@ app.post('/scan', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Crawler backend running on port ${PORT}`);
 });
+
