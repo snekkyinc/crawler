@@ -1,11 +1,13 @@
 const express = require('express');
+const cors = require('cors');       // <--- add this line
 const axios = require('axios');
 const { JSDOM } = require('jsdom');
 const { URL } = require('url');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
+app.use(cors());                   // <--- add this line
 app.use(express.json());
 
 const crawled = new Set();
@@ -18,12 +20,10 @@ async function crawl(url, origin, foundFiles, depth = 0) {
     const res = await axios.get(url, { timeout: 5000 });
     const contentType = res.headers['content-type'];
 
-    // Save .html and .js files
     if (url.endsWith('.html') || url.endsWith('.js')) {
       foundFiles.push(url);
     }
 
-    // If it's HTML, parse it for more links
     if (contentType && contentType.includes('text/html')) {
       const dom = new JSDOM(res.data);
       const doc = dom.window.document;
@@ -43,7 +43,7 @@ async function crawl(url, origin, foundFiles, depth = 0) {
       }
     }
   } catch (err) {
-    // Ignore errors silently
+    // ignore errors
   }
 }
 
@@ -57,12 +57,11 @@ app.post('/scan', async (req, res) => {
   const foundFiles = [];
   await crawl(site, new URL(site).origin, foundFiles);
 
-  // Deduplicate
   const unique = [...new Set(foundFiles)];
 
   res.json({ files: unique });
 });
 
 app.listen(PORT, () => {
-  console.log(`Crawler backend running on http://localhost:${PORT}`);
+  console.log(`Crawler backend running on port ${PORT}`);
 });
